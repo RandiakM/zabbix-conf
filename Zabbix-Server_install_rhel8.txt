@@ -1,0 +1,86 @@
+============Install Zabbix Server 5.0 on CentOS 8 / RHEL 8=================
+
+1. MySQL/ MariaDB database server
+2. Apache web server
+3. PHP with required extensions
+
+MySQL or MariaDB can be a remote server, but php and httpd need to be installed on the Zabbix server. It is possible to run Apache web server in reverse proxy mode.
+
+If you’re not a fan of SELinux, I recommend to you set it in Permissive mode.
+
+--------------Step 00--------------
+
+# sudo setenforce 0
+# sudo sed -i 's/^SELINUX=.*/SELINUX=permissive/g' /etc/selinux/config
+# cat /etc/selinux/config | grep SELINUX=
+
+--------------Step 1: Install and Configure Apache Web server--------------
+
+# sudo dnf -y install @httpd
+# sudo systemctl enable --now httpd
+# systemctl status httpd
+
+--------------Step 2: Install MariaDB Database server--------------
+
+# sudo dnf -y update
+# sudo dnf module install mariadb
+# rpm -qi mariadb-server
+# sudo systemctl enable --now mariadb
+# mysql -u root -p
+
+--------------Step 3: Install Zabbix Server on CentOS 8 / RHEL 8--------------
+
+# sudo dnf -y install https://repo.zabbix.com/zabbix/5.0/rhel/8/x86_64/zabbix-release-5.0-1.el8.noarch.rpm
+# sudo dnf -y install zabbix-server-mysql zabbix-web-mysql zabbix-apache-conf zabbix-agent
+# zcat /usr/share/doc/zabbix-server-mysql*/create.sql.gz | mysql -u zabbix -p zabbix
+
+--------------Step 4: Configure and start Zabbix server on CentOS 8 / RHEL 8--------------
+
+Edit your Zabbix configuration file /etc/zabbix/zabbix_server.conf and set the database name, user and password.
+
+# sudo vi /etc/zabbix/zabbix_server.conf
+DBName=zabbix
+DBUser=zabbix
+DBPassword=StrongPassword
+
+--------------Step 4.1: Configure PHP for Zabbix frontend:--------------
+
+Edit file /etc/php-fpm.d/zabbix.conf, uncomment and set the right timezone for you.
+
+# sudo vi /etc/php-fpm.d/zabbix.conf
+php_value[date.timezone] = Africa/Nairobi
+
+Finally start and set Zabbix services to start at boot.
+
+# systemctl restart zabbix-server zabbix-agent httpd php-fpm
+# sudo systemctl enable zabbix-server zabbix-agent httpd php-fpm
+
+Confirm that the services are running.
+
+# systemctl status zabbix-server
+# systemctl status  zabbix-agent
+
+--------------Step 5: Configure Zabbix Frontend--------------
+
+Adjust PHP parameters in /etc/php.ini.
+
+# sudo vi /etc/php.ini
+
+memory_limit 128M
+upload_max_filesize 8M
+post_max_size 16M
+max_execution_time 300
+max_input_time 300
+max_input_vars 10000
+
+Allow http and Zabbix service ports on the firewall:
+
+# sudo firewall-cmd --add-service=http --permanent
+# sudo firewall-cmd --add-port={10051,10050}/tcp --permanent
+# sudo firewall-cmd --reload
+
+Restart httpd and php-fpm service.
+
+# sudo systemctl restart httpd php-fpm
+
+Open Zabbix URL: http://<server_ip_or_name>/zabbix in your browser.
